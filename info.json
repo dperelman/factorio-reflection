@@ -1,0 +1,13 @@
+{
+  "name": "ReflectionLibrary",
+  "version": "0.0.1",
+  "title": "ReflectionLibrary",
+  "author": "anyoneeb",
+  "contact": "https://github.com/dperelman/factorio-reflection",
+  "homepage": "https://github.com/dperelman/factorio-reflection",
+  "factorio_version": "1.1",
+  "description": "Allows access to prototype type names at runtime.",
+  "dependencies": [
+    "base >= 1.1"
+  ]
+}
