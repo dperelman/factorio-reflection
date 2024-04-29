@@ -44,7 +44,7 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, decl
               if not v and not vType.optional then
                 return nil
               end
-              if not ReflectionLibraryMod.resolve_type(v, vType, deepChecks) then
+              if not ReflectionLibraryMod.resolve_type(v, vType, deepChecks, declaringType) then
                 return nil
               end
             end
@@ -53,7 +53,7 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, decl
               if not ReflectionLibraryMod.resolve_type(k, declaredType.key, deepChecks) then
                 return nil
               end
-              if not ReflectionLibraryMod.resolve_type(v, declaredType.value, deepChecks) then
+              if not ReflectionLibraryMod.resolve_type(v, declaredType.value, deepChecks, declaringType) then
                 return nil
               end
             end
@@ -63,7 +63,7 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, decl
             -- says off_when_no_fluid_recipe is allowed as a key in its array, but only in the
             -- human-readable description, not the machine-readable section.
             for _, v in ipairs(value) do
-              if not ReflectionLibraryMod.resolve_type(v, declaredType.value, deepChecks) then
+              if not ReflectionLibraryMod.resolve_type(v, declaredType.value, deepChecks, declaringType) then
                 return nil
               end
             end
