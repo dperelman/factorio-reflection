@@ -2,7 +2,7 @@ require("__ReflectionLibrary__.functions")
 
 log("In ReflectionLibrary...")
 
-for typename, _ in ipairs(ReflectionLibraryMod.prototypes_by_typename) do
+for typename, _ in pairs(ReflectionLibraryMod.prototypes_by_typename) do
   log("Loading data.raw[\""..typename.."\"]...")
   local typedValue = ReflectionLibraryMod.typed_data_raw(typename)
   log("Type checking data.raw[\""..typename.."\"]...")

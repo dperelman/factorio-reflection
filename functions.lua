@@ -16,7 +16,7 @@ For reflection, wrap objects in TypedObject:
 --]]
 
 function ReflectionLibraryMod.typed_value_name(typedValue)
-  return typedValue.rootString + "." + table.concat(typedValue.path, ".")
+  return typedValue.rootString.."."..table.concat(typedValue.path, ".")
 end
 
 function ReflectionLibraryMod.type_check(typedValue, deepChecks)
@@ -49,7 +49,7 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks)
               end
             end
           else
-            for k, v in ipairs(value) do
+            for k, v in pairs(value) do
               if complex_type == "dictionary" then
                 if not ReflectionLibraryMod.resolve_type(k, declaredType.key, deepChecks) then
                   return nil
@@ -242,7 +242,7 @@ function ReflectionLibraryMod.resolve_struct_properties(value, type, deepChecks)
   end
 
   local resolved = {}
-  for _, prop in ipairs(declaredProperties) do
+  for _, prop in pairs(declaredProperties) do
     local propValue = value[prop.name]
     if propValue == nil then
       if not prop.optional then
@@ -310,7 +310,7 @@ function ReflectionLibraryMod.typed_object_lookup_property(typedValue, propertyN
       -- Instead of doing lookup, get the dictionary keys.
 
       res.value = {}
-      for key, _ in ipairs(typedValue.value) do
+      for key, _ in pairs(typedValue.value) do
         table.insert(res.value, key)
       end
 
@@ -328,7 +328,7 @@ function ReflectionLibraryMod.typed_object_lookup_property(typedValue, propertyN
       -- Instead of doing lookup, get the dictionary values.
 
       res.value = {}
-      for _, value in ipairs(typedValue.value) do
+      for _, value in pairs(typedValue.value) do
         table.insert(res.value, value)
       end
 
