@@ -488,7 +488,6 @@ end
 
 if (__DebugAdapter) then
   local variables = require('__debugadapter__/variables.lua')
-  local iterutil = require('__debugadapter__/iterutil.lua')
 
   mt.__debugline = function (table, short)
     return variables.describe(table._private.value, short)
