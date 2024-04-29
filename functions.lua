@@ -48,13 +48,21 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, decl
                 return nil
               end
             end
-          else
+          elseif complex_type == "dictionary" then
             for k, v in pairs(value) do
-              if complex_type == "dictionary" then
-                if not ReflectionLibraryMod.resolve_type(k, declaredType.key, deepChecks) then
-                  return nil
-                end
+              if not ReflectionLibraryMod.resolve_type(k, declaredType.key, deepChecks) then
+                return nil
               end
+              if not ReflectionLibraryMod.resolve_type(v, declaredType.value, deepChecks) then
+                return nil
+              end
+            end
+          else -- complex_type == "array"
+            -- Arrays should ignore non-numbered keys because
+            -- https://lua-api.factorio.com/latest/prototypes/CraftingMachinePrototype.html#fluid_boxes
+            -- says off_when_no_fluid_recipe is allowed as a key in its array, but only in the
+            -- human-readable description, not the machine-readable section.
+            for _, v in ipairs(value) do
               if not ReflectionLibraryMod.resolve_type(v, declaredType.value, deepChecks) then
                 return nil
               end
