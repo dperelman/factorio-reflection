@@ -40,7 +40,7 @@ function ReflectionLibraryMod.type_check(typedValue, deepChecks)
   end
 end
 
-function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, declaringType, pathString)
+function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, declaringType, pathString, fromUnion)
   local complex_type = declaredType.complex_type
   if complex_type then
     if complex_type == "array" or complex_type == "dictionary" or complex_type == "tuple" then
@@ -113,7 +113,7 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, decl
       -- need to figure out which element of the union it is.
       local errors = {}
       for _, option in ipairs(declaredType.options) do
-        local status, resolvedOption = pcall(ReflectionLibraryMod.resolve_type, value, option, deepChecks, declaringType, pathString)
+        local status, resolvedOption = pcall(ReflectionLibraryMod.resolve_type, value, option, deepChecks, declaringType, pathString, true)
         if status then
           if resolvedOption then
             return resolvedOption
@@ -139,7 +139,7 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, decl
         error("value of struct type ("..declaringType.name..") must be a table"..(pathString and " at "..pathString or "")..". Was: "..value)
       end
 
-      ReflectionLibraryMod.resolve_struct_properties(value, declaringType, deepChecks)
+      ReflectionLibraryMod.resolve_struct_properties(value, declaringType, deepChecks, pathString, fromUnion)
 
       return {
         typeKind = "struct",
@@ -182,7 +182,7 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, decl
       }
     elseif aliasedType.complex_type == "struct" then
       if deepChecks then
-        ReflectionLibraryMod.resolve_struct_properties(value, as_type, deepChecks, pathString)
+        ReflectionLibraryMod.resolve_struct_properties(value, as_type, deepChecks, pathString, fromUnion)
       end
 
       return {
@@ -231,7 +231,7 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, decl
     end
 
     if deepChecks then
-      ReflectionLibraryMod.resolve_struct_properties(value, as_prototype, deepChecks, pathString)
+      ReflectionLibraryMod.resolve_struct_properties(value, as_prototype, deepChecks, pathString, fromUnion)
     end
 
     return {
@@ -297,7 +297,7 @@ function ReflectionLibraryMod.struct_declared_property(type, propName)
   return nil
 end
 
-function ReflectionLibraryMod.resolve_struct_properties(value, type, deepChecks, pathString)
+function ReflectionLibraryMod.resolve_struct_properties(value, type, deepChecks, pathString, fromUnion)
   local declaredProperties = ReflectionLibraryMod.struct_declared_properties(type)
 
   -- Fail fast by checking type, which is often the intentional way to distinguish unions.
@@ -307,7 +307,7 @@ function ReflectionLibraryMod.resolve_struct_properties(value, type, deepChecks,
     if p and (not p.optional or value[name]) then
       local t = p.type
       if t.complex_type == "literal" and not (t.value == value[name]) then
-        error("(union filter) Value's ."..name.." property does not match expected value of "..t.value.." (was "..tostring(value[name])..")"..(pathString and " in "..pathString or "")..".")
+        error((fromUnion and "(union filter) " or "").."Value's ."..name.." property does not match expected value of "..t.value.." (was "..tostring(value[name])..")"..(pathString and " in "..pathString or "")..".")
       end
     end
   end
