@@ -16,11 +16,23 @@ For reflection, wrap objects in TypedObject:
 --]]
 
 function ReflectionLibraryMod.typed_value_name(typedValue)
-  return typedValue.rootString.."."..table.concat(typedValue.path, ".")
+  local pathString = typedValue.rootString or "<unknown root>"
+  for _, section in ipairs(typedValue.path) do
+    if section.func then
+      pathString = pathString .. ":" .. section.func .. "()"
+    elseif ReflectionLibraryMod.is_valid_lua_identifier(section) then
+      pathString = pathString .. "." .. section
+    else -- this doesn't bother with checking if section needs to be escaped
+      pathString = pathString .. "[\"" .. section .. "\"]"
+    end
+  end
+  return pathString
 end
 
 function ReflectionLibraryMod.type_check(typedValue, deepChecks)
-  if not ReflectionLibraryMod.resolve_type(typedValue.value, typedValue.declaredType, deepChecks) then
+  if not ReflectionLibraryMod.resolve_type(typedValue.value, typedValue.declaredType,
+                                           deepChecks, nil,
+                                           ReflectionLibraryMod.typed_value_name(typedValue)) then
     log("ERROR: Type check failed on "..ReflectionLibraryMod.typed_value_name(typedValue))
     return false
   else
@@ -28,7 +40,7 @@ function ReflectionLibraryMod.type_check(typedValue, deepChecks)
   end
 end
 
-function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, declaringType)
+function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, declaringType, pathString)
   local complex_type = declaredType.complex_type
   if complex_type then
     if complex_type == "array" or complex_type == "dictionary" or complex_type == "tuple" then
@@ -44,20 +56,22 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, decl
               if not v and not vType.optional then
                 error("Tuple missing non-optional element "..k)
               end
-              local status, resolved = pcall(ReflectionLibraryMod.resolve_type, v, vType, deepChecks, declaringType)
+              local status, resolved = pcall(ReflectionLibraryMod.resolve_type, v, vType, deepChecks, declaringType, pathString and pathString.."["..k.."]")
               if not status or not resolved then
-                error("Tuple element "..k.." ("..tostring(v)..(v and v.type and ", .type="..tostring(v.type) or "")..") does not match expected type "..tostring(vType)..". "..(resolved or ""))
+                error("Tuple element "..k.." ("..tostring(v)..(v and v.type and ", .type="..tostring(v.type) or "")..") does not match expected type "..tostring(vType)..(pathString and " in "..pathString or "")..". "..(resolved or ""))
               end
             end
           elseif complex_type == "dictionary" then
+            local n = 0
             for k, v in pairs(value) do
-              local status, resolved = pcall(ReflectionLibraryMod.resolve_type, k, declaredType.key, deepChecks)
+              n = n + 1
+              local status, resolved = pcall(ReflectionLibraryMod.resolve_type, k, declaredType.key, deepChecks, nil, pathString and pathString..":keys()["..n.."]")
               if not status or not resolved then
-                error("Dictionary key "..k.." does not match expected type "..tostring(declaredType.key)..". "..(resolved or ""))
+                error("Dictionary key "..k.." does not match expected type "..tostring(declaredType.key)..(pathString and " in "..pathString or "")..". "..(resolved or ""))
               end
-              status, resolved = pcall(ReflectionLibraryMod.resolve_type, v, declaredType.value, deepChecks, declaringType)
+              status, resolved = pcall(ReflectionLibraryMod.resolve_type, v, declaredType.value, deepChecks, declaringType, pathString and pathString.."["..tostring(k).."]")
               if not status or not resolved then
-                error("Dictionary value "..tostring(v).." ("..tostring(v)..(v and v.type and ", .type="..tostring(v.type) or "")..") does not match expected type "..tostring(declaredType.value)..". "..(resolved or ""))
+                error("Dictionary value "..tostring(v).." ("..tostring(v)..(v and v.type and ", .type="..tostring(v.type) or "")..") does not match expected type "..tostring(declaredType.value)..(pathString and " in "..pathString or "")..". "..(resolved or ""))
               end
             end
           else -- complex_type == "array"
@@ -66,9 +80,9 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, decl
             -- says off_when_no_fluid_recipe is allowed as a key in its array, but only in the
             -- human-readable description, not the machine-readable section.
             for k, v in ipairs(value) do
-              local status, resolved = pcall(ReflectionLibraryMod.resolve_type, v, declaredType.value, deepChecks, declaringType)
+              local status, resolved = pcall(ReflectionLibraryMod.resolve_type, v, declaredType.value, deepChecks, declaringType, pathString and pathString.."["..tostring(k).."]")
               if not status or not resolved then
-                error("Array element "..k.." ("..tostring(v)..(v and v.type and ", .type="..tostring(v.type) or "")..") does not match expected type "..tostring(declaredType.value)..". "..(resolved or ""))
+                error("Array element "..k.." ("..tostring(v)..(v and v.type and ", .type="..tostring(v.type) or "")..") does not match expected type "..tostring(declaredType.value)..(pathString and " in "..pathString or "")..". "..(resolved or ""))
               end
             end
           end
@@ -93,13 +107,13 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, decl
           literalValue = literalValue,
         }
       else
-        error("Not matching literal value (expected="..tostring(literalValue)..", actual="..tostring(value)..")")
+        error("Not matching literal value (expected="..tostring(literalValue)..", actual="..tostring(value)..")"..(pathString and " in "..pathString or ""))
       end
     elseif complex_type == "union" then
       -- need to figure out which element of the union it is.
       local errors = {}
       for _, option in ipairs(declaredType.options) do
-        local status, resolvedOption = pcall(ReflectionLibraryMod.resolve_type, value, option, deepChecks, declaringType)
+        local status, resolvedOption = pcall(ReflectionLibraryMod.resolve_type, value, option, deepChecks, declaringType, pathString)
         if status then
           if resolvedOption then
             return resolvedOption
@@ -115,17 +129,17 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, decl
           error_str = error_str.."\n"..error
         end
       end
-      error("No options matched for union ("..tostring(#declaredType.options).." options):"..error_str)
+      error("No options matched for union ("..tostring(#declaredType.options).." options)"..(pathString and " at "..pathString or "")..":"..error_str)
     elseif complex_type == "struct" then
       -- This case means "complex_type": "struct" was used as an option inside a union in a
       -- Type's definition, which means to use the properties list on the type.
       if not declaringType then
         error("struct doesn't make sense outside of a type definition")
       elseif not (type(value) == "table") then
-        error("value of struct type ("..declaringType.name..") must be a table. Was: "..value)
+        error("value of struct type ("..declaringType.name..") must be a table"..(pathString and " at "..pathString or "")..". Was: "..value)
       end
 
-      ReflectionLibraryMod.verify_struct_properties(value, declaringType, deepChecks)
+      ReflectionLibraryMod.resolve_struct_properties(value, declaringType, deepChecks)
 
       return {
         typeKind = "struct",
@@ -136,7 +150,7 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, decl
       declaredType = declaredType.value
       -- Intentionally fall through to the code below handling type names.
     else
-      error("Unrecognized complex_type kind: " .. complex_type)
+      error("Unrecognized complex_type kind "..complex_type..(pathString and " at "..pathString or ""))
     end
   end
 
@@ -148,17 +162,17 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, decl
       local t = type(value)
       if t == "string" then
         if not (declaredType == "string") then
-          error("Expected a string. Was: "..tostring(value))
+          error("Expected a string"..(pathString and " at "..pathString or "")..". Was: "..tostring(value))
         end
       elseif t == "boolean" then
         if not (declaredType == "bool") then
-          error("Expected a boolean. Was: "..tostring(value))
+          error("Expected a boolean"..(pathString and " at "..pathString or "")..". Was: "..tostring(value))
         end
       elseif declaredType == "DataExtendMethod" then
         error("DataExtendMethod is an unsupported type.")
       -- The rest of the builtins are kinds of numbers: float, double, int8, int16, ...
       elseif not (t == "number") then
-        error("Expected a number. Was: "..tostring(value))
+        error("Expected a number"..(pathString and " at "..pathString or "")..". Was: "..tostring(value))
       end
 
       return {
@@ -168,7 +182,7 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, decl
       }
     elseif aliasedType.complex_type == "struct" then
       if deepChecks then
-        ReflectionLibraryMod.verify_struct_properties(value, as_type, deepChecks)
+        ReflectionLibraryMod.resolve_struct_properties(value, as_type, deepChecks, pathString)
       end
 
       return {
@@ -177,7 +191,7 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, decl
         typeInfo = as_type,
       }
     else
-      local resolved = ReflectionLibraryMod.resolve_type(value, aliasedType, deepChecks, as_type)
+      local resolved = ReflectionLibraryMod.resolve_type(value, aliasedType, deepChecks, as_type, pathString)
       if resolved and resolved.typeKind == "builtin" then
         return {
           typeKind = "alias",
@@ -195,11 +209,11 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, decl
     if not (value.type == as_prototype.typename) then
       local dynamic_prototype = ReflectionLibraryMod.prototypes_by_typename[value.type]
       if not dynamic_prototype then
-        error("Value declared of type "..declaredType.." has a .type property of unknown prototype "..tostring(value.type)..".")
+        error("Value declared of type "..declaredType.." has a .type property of unknown prototype "..tostring(value.type)..(pathString and " at "..pathString or "")..".")
       end
       -- If the dynamic type doesn't have supertypes, it's definitely not a subtype.
       if not dynamic_prototype.parent then
-        error("Value declared of type "..declaredType.." has a .type property of prototype "..tostring(value.type).." which is not a subtype.")
+        error("Value declared of type "..declaredType.." has a .type property of prototype "..tostring(value.type).." which is not a subtype"..(pathString and " at "..pathString or "")..".")
       end
       -- Look through the dynamic type's supertypes looking for the declared prototype.
       local current_prototype = dynamic_prototype
@@ -211,13 +225,13 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, decl
           break
         elseif not current_prototype.parent then
           -- Is a prototype value of the wrong type.
-          error("Value declared of type "..declaredType.." has a .type property of prototype "..tostring(value.type).." which is not a subtype.")
+          error("Value declared of type "..declaredType.." has a .type property of prototype "..tostring(value.type).." which is not a subtype"..(pathString and " at "..pathString or "")..".")
         end
       end
     end
 
     if deepChecks then
-      ReflectionLibraryMod.verify_struct_properties(value, as_prototype, deepChecks)
+      ReflectionLibraryMod.resolve_struct_properties(value, as_prototype, deepChecks, pathString)
     end
 
     return {
@@ -227,13 +241,7 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, decl
     }
   end
 
-  error("Unrecognized type name: " .. declaredType)
-end
-
-function ReflectionLibraryMod.verify_struct_properties(value, type, deepChecks)
-  -- Errors if it fails.
-  ReflectionLibraryMod.resolve_struct_properties(value, type, deepChecks)
-  return true
+  error("Unrecognized type name ".. declaredType..(pathString and " at "..pathString or ""))
 end
 
 -- List of parent types with the
@@ -289,7 +297,7 @@ function ReflectionLibraryMod.struct_declared_property(type, propName)
   return nil
 end
 
-function ReflectionLibraryMod.resolve_struct_properties(value, type, deepChecks)
+function ReflectionLibraryMod.resolve_struct_properties(value, type, deepChecks, pathString)
   local declaredProperties = ReflectionLibraryMod.struct_declared_properties(type)
 
   -- Fail fast by checking type, which is often the intentional way to distinguish unions.
@@ -299,7 +307,7 @@ function ReflectionLibraryMod.resolve_struct_properties(value, type, deepChecks)
     if p and (not p.optional or value[name]) then
       local t = p.type
       if t.complex_type == "literal" and not (t.value == value[name]) then
-        error("(union filter) Value's ."..name.." property does not match expected value of "..t.value.." (was "..tostring(value[name])..").")
+        error("(union filter) Value's ."..name.." property does not match expected value of "..t.value.." (was "..tostring(value[name])..")"..(pathString and " in "..pathString or "")..".")
       end
     end
   end
@@ -307,19 +315,23 @@ function ReflectionLibraryMod.resolve_struct_properties(value, type, deepChecks)
   local resolved = {}
   for _, prop in pairs(declaredProperties) do
     local propValue = value[prop.name]
+    local name = prop.name
     if propValue == nil and prop.alt_name then
       propValue = value[prop.alt_name]
+      name = prop.alt_name
     end
 
     if propValue == nil then
       if not prop.optional then
         error("Non-optional property "..type.name.."."..prop.name
-              ..((prop.alt_name and (" (alt: "..prop.alt_name..")")) or "").." is missing.")
+              ..((prop.alt_name and (" (alt: "..prop.alt_name..")")) or "").." is missing"
+              ..(pathString and " in "..pathString or "")..".")
       end
     else
-      local propResolvedType = ReflectionLibraryMod.resolve_type(propValue, prop.type, deepChecks)
+      local propPathString = pathString and pathString..(ReflectionLibraryMod.is_valid_lua_identifier(name) and ("."..name) or ("["..name.."]"))
+      local propResolvedType = ReflectionLibraryMod.resolve_type(propValue, prop.type, deepChecks, nil, propPathString)
       if not propResolvedType then
-        error("Unexpected type for property "..type.name.."."..prop.name.." (type="..prop.type..", value="..propValue..").")
+        error("Unexpected type for property "..type.name.."."..prop.name.." (type="..prop.type..", value="..propValue..")"..(pathString and " in "..pathString or "")..".")
       else
         resolved[prop.name] = {
           declaredType = prop.type,
@@ -648,17 +660,7 @@ function ReflectionLibraryMod.is_valid_lua_identifier(str)
 end
 
 prototype._pathString = function (table)
-  local pathString = table._private.rootString
-  for _, section in ipairs(table._private.path) do
-    if section.func then
-      pathString = pathString .. ":" .. section.func .. "()"
-    elseif ReflectionLibraryMod.is_valid_lua_identifier(section) then
-      pathString = pathString .. "." .. section
-    else -- this doesn't bother with checking if section needs to be escaped
-      pathString = pathString .. "[\"" .. section .. "\"]"
-    end
-  end
-  return pathString
+  return ReflectionLibraryMod.typed_value_name(table._private)
 end
 
 function ReflectionLibraryMod.wrap_typed_object(typedValue)
