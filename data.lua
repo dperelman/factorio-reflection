@@ -1,6 +1,7 @@
 ReflectionLibraryMod = ReflectionLibraryMod or {}
 require("__ReflectionLibrary__.prototype-api")
 
+
 local function add_local_properties_by_name(value)
   -- TODO Include supertype properties/info?
   if value.properties then
@@ -38,6 +39,25 @@ local props = ReflectionLibraryMod.prototypes_by_name["DontUseEntityInEnergyProd
 props.excluded.optional = true
 props.included.optional = true
 ReflectionLibraryMod.types_by_name["RotatedAnimation"].local_properties_by_name.direction_count.optional = true
+
+-- FootstepTriggerEffectItem's inherited properties are actually options because it can contain an array of them.
+local t = ReflectionLibraryMod.types_by_name["FootstepTriggerEffectItem"]
+local props = t.properties
+local parent = ReflectionLibraryMod.types_by_name[t.parent]
+local parentProps = parent.properties
+for _, prop in ipairs(parentProps) do
+  if not prop.optional then
+    local newProp = {}
+    for k, v in pairs(prop) do
+      newProp[k] = v
+    end
+    newProp.override = true
+    newProp.optional = true
+    table.insert(props, newProp)
+  end
+end
+-- fixup local_properties_by_name
+add_local_properties_by_name(t)
 
 
 local data_raw_properties = {}
