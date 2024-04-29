@@ -15,6 +15,19 @@ For reflection, wrap objects in TypedObject:
 }
 --]]
 
+function ReflectionLibraryMod.typed_value_name(typedValue)
+  return typedValue.rootString + "." + table.concat(typedValue.path, ".")
+end
+
+function ReflectionLibraryMod.type_check(typedValue, deepChecks)
+  if not ReflectionLibraryMod.resolve_type(typedValue.value, typedValue.declaredType, deepChecks) then
+    log("Type check failed on "..ReflectionLibraryMod.typed_value_name(typedValue))
+    return false
+  else
+    return true
+  end
+end
+
 function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks)
   local complex_type = declaredType.complex_type
   if complex_type then
