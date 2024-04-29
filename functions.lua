@@ -313,6 +313,10 @@ function ReflectionLibraryMod.resolve_struct_properties(value, type, deepChecks)
 end
 
 function ReflectionLibraryMod.typed_object_lookup_property(typedValue, propertyName)
+  if not (type(typedValue.value) == "table") then
+    return nil
+  end
+
   local type = typedValue.type
   local newPath = {}
   for index, value in ipairs(typedValue.path) do
@@ -339,6 +343,7 @@ function ReflectionLibraryMod.typed_object_lookup_property(typedValue, propertyN
       return nil
     end
 
+    res.declaredProperty = prop
     res.declaredType = prop.type
   elseif type.typeKind == "literal" then
     return nil -- property lookup on a literal is nonsense
@@ -432,12 +437,91 @@ end
 local prototype = {}
 local mt = {}
 mt.__index = function (table, key)
-  return prototype[key] or ReflectionLibraryMod.wrap_typed_object(
+  local res = prototype[key] or ReflectionLibraryMod.wrap_typed_object(
     ReflectionLibraryMod.typed_object_lookup_property(table._private, key))
+  if res == nil then
+    if key == "_value" then
+      res = table._private.value
+    elseif key == "_type" then
+      res = table._private.type
+    elseif key == "_parent" then
+      res = table._private.parent
+    elseif key == "_propertyInfo" then
+      res = table._private.declaredProperty
+    end
+  end
+  return res
 end
 
 mt.__newindex = function (table, key, newValue)
+  -- If newValue is a wrapped typed value, then unwrap it before using it.
+  if getmetatable(newValue) == mt then
+    newValue = newValue._private.value
+  end
   table._private.value[key] = newValue
+end
+
+mt.__tostring = function (table)
+  return tostring(table._private.value)
+end
+
+if (__DebugAdapter) then
+  local variables = require('__debugadapter__/variables.lua')
+  local iterutil = require('__debugadapter__/iterutil.lua')
+
+  mt.__debugline = function (table, short)
+    return variables.describe(table._private.value, short)
+  end
+
+  local specialKeys = {
+    "_type",
+    "_path()",
+    "_pathString()",
+    "_keys()",
+    "_values()",
+    "_value",
+  }
+  local lastSpecialKey = specialKeys[#specialKeys]
+  mt.__debugcontents = function (table)
+    function stateless_iter(table, k)
+      if not k or not (k == lastSpecialKey) and string.sub(k, 1, 1) == "_" then
+        local seenKey = k == nil
+        for _, nextKey in ipairs(specialKeys) do
+          if not seenKey then
+            if nextKey == k then
+              seenKey = true
+            end
+          else
+            local v
+            if string.sub(nextKey, -2) == "()" then
+              local funcName = string.sub(nextKey, 1, -3)
+              v = table[funcName](table)
+            else
+              v = table[nextKey]
+            end
+            if not (v == nil) then
+              return nextKey, v
+            end
+          end
+        end
+      end
+
+      if k == lastSpecialKey then
+        k = nil
+      end
+
+      if type(table._private.value) == "table" then
+        local v
+        k, v = next(table._private.value, k)
+        if nil~=v then
+          -- This could return nil on a type error...
+          return k,mt.__index(table, k)
+        end
+      end
+    end
+
+    return stateless_iter, table, nil
+  end
 end
 
 prototype._keys = function (table)
@@ -484,6 +568,56 @@ end
 
 prototype._type_check = function (table, deepChecks)
   return ReflectionLibraryMod.type_check(table._private, deepChecks)
+end
+
+prototype._path = function (wrappedValue)
+  local fullPath = { wrappedValue._private.rootString }
+  for _, section in ipairs(wrappedValue._private.path) do
+    table.insert(fullPath, section)
+  end
+  return fullPath
+end
+
+local luaKeywords = {
+  ["and"] = true,
+  ["break"] = true,
+  ["do"] = true,
+  ["else"] = true,
+  ["elseif"] = true,
+  ["end"] = true,
+  ["false"] = true,
+  ["for"] = true,
+  ["function "] = true,
+  ["if"] = true,
+  ["in"] = true,
+  ["local"] = true,
+  ["nil"] = true,
+  ["not"] = true,
+  ["or"] = true,
+  ["repeat"] = true,
+  ["return"] = true,
+  ["then"] = true,
+  ["true"] = true,
+  ["until"] = true,
+  ["while"] = true,
+}
+
+function ReflectionLibraryMod.is_valid_lua_identifier(str)
+  return string.match(str, "^[_%a][_%a%d]*$") and not luaKeywords[str]
+end
+
+prototype._pathString = function (table)
+  local pathString = table._private.rootString
+  for _, section in ipairs(table._private.path) do
+    if section.func then
+      pathString = pathString .. ":" .. section.func .. "()"
+    elseif ReflectionLibraryMod.is_valid_lua_identifier(section) then
+      pathString = pathString .. "." .. section
+    else -- this doesn't bother with checking if section needs to be escaped
+      pathString = pathString .. "[\"" .. section .. "\"]"
+    end
+  end
+  return pathString
 end
 
 function ReflectionLibraryMod.wrap_typed_object(typedValue)
