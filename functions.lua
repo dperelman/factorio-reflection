@@ -135,10 +135,14 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, decl
 
     if aliasedType == "builtin" then
       local t = type(value)
-      if t == "string" and not (declaredType == "string") then
-        return nil
-      elseif t == "boolean" and not (declaredType == "bool") then
-        return nil
+      if t == "string" then
+        if not (declaredType == "string") then
+          return nil
+        end
+      elseif t == "boolean" then
+        if not (declaredType == "bool") then
+          return nil
+        end
       elseif declaredType == "DataExtendMethod" then
         return nil
       -- The rest of the builtins are kinds of numbers: float, double, int8, int16, ...
