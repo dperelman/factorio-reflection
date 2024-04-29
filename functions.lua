@@ -202,7 +202,7 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, decl
 end
 
 function ReflectionLibraryMod.verify_struct_properties(value, type, deepChecks)
-  return not (ReflectionLibraryMod.resolve_struct_properties(value, type, deepChecks, {}) == nil)
+  return not (ReflectionLibraryMod.resolve_struct_properties(value, type, deepChecks) == nil)
 end
 
 -- List of parent types with the
@@ -215,7 +215,7 @@ function ReflectionLibraryMod.type_and_parents(type, reversed)
 
   local parentType = ReflectionLibraryMod.prototypes_by_name[type.parent]
   if not parentType then
-    parentType = ReflectionLibraryMod.types_by_name[parentType]
+    parentType = ReflectionLibraryMod.types_by_name[type.parent]
   end
   if not parentType then
     log("Type "..type.name.." has unknown parent type "..type.parent)
@@ -269,7 +269,6 @@ function ReflectionLibraryMod.struct_declared_property(type, propName)
   return nil
 end
 
--- TODO Would be nice to be able to resolve just one requested property.
 function ReflectionLibraryMod.resolve_struct_properties(value, type, deepChecks)
   local declaredProperties = ReflectionLibraryMod.struct_declared_properties(type)
   if not declaredProperties then
@@ -284,7 +283,7 @@ function ReflectionLibraryMod.resolve_struct_properties(value, type, deepChecks)
         return nil
       end
     else
-      local propResolvedType = not ReflectionLibraryMod.resolve_type(propValue, prop.type, deepChecks)
+      local propResolvedType = ReflectionLibraryMod.resolve_type(propValue, prop.type, deepChecks)
       if not propResolvedType then
         return nil
       else
