@@ -312,7 +312,6 @@ function ReflectionLibraryMod.resolve_struct_properties(value, type, deepChecks,
     end
   end
 
-  local resolved = {}
   for _, prop in pairs(declaredProperties) do
     local propValue = value[prop.name]
     local name = prop.name
@@ -332,16 +331,9 @@ function ReflectionLibraryMod.resolve_struct_properties(value, type, deepChecks,
       local propResolvedType = ReflectionLibraryMod.resolve_type(propValue, prop.type, deepChecks, nil, propPathString)
       if not propResolvedType then
         error("Unexpected type for property "..type.name.."."..prop.name.." (type="..prop.type..", value="..propValue..")"..(pathString and " in "..pathString or "")..".")
-      else
-        resolved[prop.name] = {
-          declaredType = prop.type,
-          resolvedType = propResolvedType,
-        }
       end
     end
   end
-
-  return resolved
 end
 
 function ReflectionLibraryMod.typed_object_lookup_property(typedValue, propertyName)
