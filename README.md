@@ -1,6 +1,7 @@
 # Factorio Reflection Library
 
-This is an early work-in-progress that does not do anything yet.
+This is an early work-in-progress. See [Description](./description.md)
+for how to use it.
 
 The goal of this mod is to give runtime access to
 https://lua-api.factorio.com/latest/auxiliary/json-docs-prototype.html
