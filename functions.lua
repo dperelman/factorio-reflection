@@ -21,7 +21,7 @@ end
 
 function ReflectionLibraryMod.type_check(typedValue, deepChecks)
   if not ReflectionLibraryMod.resolve_type(typedValue.value, typedValue.declaredType, deepChecks) then
-    log("Type check failed on "..ReflectionLibraryMod.typed_value_name(typedValue))
+    log("ERROR: Type check failed on "..ReflectionLibraryMod.typed_value_name(typedValue))
     return false
   else
     return true
@@ -376,7 +376,13 @@ function ReflectionLibraryMod.as_typed_object(value, declaredType, valueString)
 end
 
 function ReflectionLibraryMod.typed_data_raw(prototypeTypename)
-  return ReflectionLibraryMod.as_typed_object(data.raw[prototypeTypename], {
+  local value = data.raw[prototypeTypename]
+  if not value then
+    -- Prototype not actually in data.raw?
+    return nil
+  end
+
+  return ReflectionLibraryMod.as_typed_object(value, {
     complex_type = "array",
     value = ReflectionLibraryMod.prototypes_by_typename[prototypeTypename].name
   }, "data.raw[\""..prototypeTypename.."\"]")
