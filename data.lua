@@ -23,7 +23,8 @@ for typename, prototype in pairs(ReflectionLibraryMod.prototypes_by_typename) do
     name = typename,
     optional = true,
     type = {
-      complex_type = "array",
+      complex_type = "dictionary",
+      key = "string",
       value = prototype.name,
     },
   })
