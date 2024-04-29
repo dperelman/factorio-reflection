@@ -12,7 +12,7 @@ For reflection, wrap objects in TypedObject:
   type: -- the resolved type; i.e., this will never be a union.
         -- Include reference to the prototype/type object probably?
 
-} 
+}
 --]]
 
 function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks)
@@ -157,85 +157,93 @@ function ReflectionLibraryMod.verify_struct_properties(value, type, deepChecks)
   return not (ReflectionLibraryMod.resolve_struct_properties(value, type, deepChecks, {}) == nil)
 end
 
-function ReflectionLibraryMod.struct_declared_properties(type)
-  local properties = {}
-
-  -- Check parent properties first.
-  if type.parent then
-    local parentType = ReflectionLibraryMod.prototypes_by_name[type.parent]
-    if not parentType then
-      parentType = ReflectionLibraryMod.types_by_name[parentType]
-    end
-    if not parentType then
-      log("Type "..type.name.." has unknown parent type "..type.parent)
-      return nil
-    end
-
-    properties = ReflectionLibraryMod.struct_declared_properties(parentType)
-    if not properties then
-      return nil
-    end
+-- List of parent types with the
+--  reversed=false: given type last, most general first.
+--  reversed=true: given type false, most general last.
+function ReflectionLibraryMod.type_and_parents(type, reversed)
+  if not type.parent then
+    return { type }
   end
 
-  for _, prop in ipairs(type.properties) do
-    -- No need to worry about overridden properties as we process subtype properties last.
-    properties[prop.name] = prop
+  local parentType = ReflectionLibraryMod.prototypes_by_name[type.parent]
+  if not parentType then
+    parentType = ReflectionLibraryMod.types_by_name[parentType]
+  end
+  if not parentType then
+    log("Type "..type.name.." has unknown parent type "..type.parent)
+    return nil
+  end
+
+  local types = ReflectionLibraryMod.type_and_parents(parentType, reversed)
+  if not types then
+    return nil
+  else
+    if reversed then
+      table.insert(types, 1, type)
+    else
+      table.insert(types, type)
+    end
+    return types
+  end
+end
+
+function ReflectionLibraryMod.struct_declared_properties(type)
+  local ancestor_types = ReflectionLibraryMod.type_and_parents(type, false)
+  if not ancestor_types then
+    return nil
+  end
+
+  local properties = {}
+  for _, t in ipairs(ancestor_types) do
+    for _, prop in ipairs(t.properties) do
+      -- No need to worry about overridden properties as we process subtype properties last.
+      properties[prop.name] = prop
+    end
   end
 
   return properties
 end
 
--- TODO Would be nice to be able to resolve just one requested property.
-function ReflectionLibraryMod.resolve_struct_properties(value, type, deepChecks, overridden_props)
-  local resolved = {}
+function ReflectionLibraryMod.struct_declared_property(type, propName)
+  local ancestor_types = ReflectionLibraryMod.type_and_parents(type, true)
+  if not ancestor_types then
+    return nil
+  end
 
-  -- Check parent properties first.
-  if type.parent then
-    local parentType = ReflectionLibraryMod.prototypes_by_name[type.parent]
-    if not parentType then
-      parentType = ReflectionLibraryMod.types_by_name[parentType]
-    end
-    if not parentType then
-      log("Type "..type.name.." has unknown parent type "..type.parent)
-      return nil
-    end
-
-    local parent_overridden_props = {}
-    if overridden_props then
-      for propname, _ in ipairs(overridden_props) do
-        parent_overridden_props[propname] = true
+  for _, t in ipairs(ancestor_types) do
+    for _, prop in ipairs(t.properties) do
+      if propName == prop.name then
+        return prop
       end
-    end
-    for _, prop in ipairs(type.properties) do
-      if prop.override then
-        parent_overridden_props[prop.name] = true
-      end
-    end
-
-    resolved = ReflectionLibraryMod.resolve_struct_properties(value, parentType, deepChecks, parent_overridden_props)
-    if not resolved then
-      return nil
     end
   end
 
-  for _, prop in ipairs(type.properties) do
-    -- Don't process properties overridden by subtypes.
-    if not overridden_props[prop.name] then
-      local propValue = value[prop.name]
-      if propValue == nil then
-        if not prop.optional then
-          return nil
-        end
+  return nil
+end
+
+-- TODO Would be nice to be able to resolve just one requested property.
+function ReflectionLibraryMod.resolve_struct_properties(value, type, deepChecks)
+  local declaredProperties = ReflectionLibraryMod.struct_declared_properties(type)
+  if not declaredProperties then
+    return nil
+  end
+
+  local resolved = {}
+  for _, prop in ipairs(declaredProperties) do
+    local propValue = value[prop.name]
+    if propValue == nil then
+      if not prop.optional then
+        return nil
+      end
+    else
+      local propResolvedType = not ReflectionLibraryMod.resolve_type(propValue, prop.type, deepChecks)
+      if not propResolvedType then
+        return nil
       else
-        local propResolvedType = not ReflectionLibraryMod.resolve_type(propValue, prop.type, deepChecks)
-        if not propResolvedType then
-          return nil
-        else
-          resolved[prop.name] = {
-            declaredType = prop.type,
-            resolvedType = propResolvedType,
-          }
-        end
+        resolved[prop.name] = {
+          declaredType = prop.type,
+          resolvedType = propResolvedType,
+        }
       end
     end
   end
@@ -260,41 +268,30 @@ function ReflectionLibraryMod.typed_object_lookup_property(typedValue, propertyN
     parent = typedValue,
   }
 
+  if res.value == nil and not propertyName.func then
+    return nil
+  end
+
   if type.typeKind == "type" or type.typeKind == "prototype" then
-    local resolvedProperties = ReflectionLibraryMod.resolve_struct_properties(typedValue.value, type.typeInfo, false, {})
-    if not resolvedProperties then
-      return nil
-    end
-    local propertyType = resolvedProperties[propertyName]
-    if not propertyType then
+    local prop = ReflectionLibraryMod.struct_declared_property(type.typeInfo, propertyName)
+    if not prop then
       return nil
     end
 
-    res.declaredType = propertyType.declaredType
-    res.type = propertyName.resolvedType
-    return res
+    res.declaredType = prop.type
   elseif type.typeKind == "literal" then
     return nil -- property lookup on a literal is nonsense
   elseif type.typeKind == "tuple" then
-    if res.value == nil then
-      return nil
-    end
-
     res.declaredType = type.values[propertyName]
     if not res.declaredType then
       return nil
     end
-
-    res.type = ReflectionLibraryMod.resolve_type(res.value, res.declaredType, false)
-    return res
   elseif type.typeKind == "array" then
     if res.value == nil then
       return nil
     end
 
     res.declaredType = type.value
-    res.type = ReflectionLibraryMod.resolve_type(res.value, res.declaredType, false)
-    return res
   elseif type.typeKind == "dictionary" then
     if propertyName.func == "keys" then
       -- Instead of doing lookup, get the dictionary keys.
@@ -339,10 +336,11 @@ function ReflectionLibraryMod.typed_object_lookup_property(typedValue, propertyN
       end
 
       res.declaredType = type.value
-      res.type = ReflectionLibraryMod.resolve_type(res.value, res.declaredType, false)
-      return res
     end
   end
+
+  res.type = ReflectionLibraryMod.resolve_type(res.value, res.declaredType, false)
+  return res
 end
 
 function ReflectionLibraryMod.as_typed_object(value, declaredType, valueString)
