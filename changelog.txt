@@ -1,0 +1,9 @@
+---------------------------------------------------------------------------------------------------
+Version: 0.0.1
+Date: 2024-04-29
+  Features:
+    - Initial release.
+    - Entrypoint: `ReflectionLibraryMod.typed_data_raw`, like data.raw
+      but with type information.
+    - Methods/properties supported: ._type, ._value, ._propertyInfo, ._parent,
+      ._path(), ._pathString(), (dictionaries only) ._keys(), ._values()
