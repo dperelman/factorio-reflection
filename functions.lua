@@ -275,6 +275,12 @@ function ReflectionLibraryMod.resolve_struct_properties(value, type, deepChecks)
     return nil
   end
 
+  -- Fail fast by checking type, which is often the intentional way to distinguish unions.
+  if declaredProperties.type and declaredProperties.type.type.complex_type == "literal" and
+      not (declaredProperties.type.type.value == value.type) then
+    return nil
+  end
+
   local resolved = {}
   for _, prop in pairs(declaredProperties) do
     local propValue = value[prop.name]
