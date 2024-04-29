@@ -28,7 +28,7 @@ function ReflectionLibraryMod.type_check(typedValue, deepChecks)
   end
 end
 
-function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks)
+function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, declaringType)
   local complex_type = declaredType.complex_type
   if complex_type then
     if complex_type == "array" or complex_type == "dictionary" or complex_type == "tuple" then
@@ -86,13 +86,32 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks)
     elseif complex_type == "union" then
       -- need to figure out which element of the union it is.
       for _, option in ipairs(declaredType.options) do
-        local resolvedOption = ReflectionLibraryMod.resolve_type(value, option)
+        local resolvedOption = ReflectionLibraryMod.resolve_type(value, option, deepChecks, declaringType)
         if resolvedOption then
           return resolvedOption
         end
       end
       -- No union member matched.
       return nil
+    elseif complex_type == "struct" then
+      -- This case means "complex_type": "struct" was used as an option inside a union in a
+      -- Type's definition, which means to use the properties list on the type.
+      if not declaringType then
+        log("ERROR: struct doesn't make sense outside of a type definition")
+        return nil
+      elseif not (type(value) == "table") then
+        return nil
+      end
+
+      if not ReflectionLibraryMod.verify_struct_properties(value, declaringType, deepChecks) then
+        return nil
+      end
+
+      return {
+        typeKind = "struct",
+        name = declaringType.name,
+        typeInfo = declaringType,
+      }
     elseif complex_type == "type" then
       declaredType = declaredType.value
       -- Intentionally fall through to the code below handling type names.
@@ -125,7 +144,7 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks)
         typeInfo = as_type,
       }
     else
-      return ReflectionLibraryMod.resolve_type(value, aliasedType, deepChecks)
+      return ReflectionLibraryMod.resolve_type(value, aliasedType, deepChecks, as_type)
     end
   end
 
@@ -293,7 +312,7 @@ function ReflectionLibraryMod.typed_object_lookup_property(typedValue, propertyN
     return nil
   end
 
-  if type.typeKind == "type" or type.typeKind == "prototype" then
+  if type.typeKind == "type" or type.typeKind == "prototype" or type.typeKind == "struct" then
     local prop = ReflectionLibraryMod.struct_declared_property(type.typeInfo, propertyName)
     if not prop then
       return nil
