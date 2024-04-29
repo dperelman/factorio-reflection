@@ -466,7 +466,7 @@ mt.__index = function (table, key)
     elseif key == "_type" then
       res = table._private.type
     elseif key == "_parent" then
-      res = table._private.parent
+      res = ReflectionLibraryMod.wrap_typed_object(table._private.parent)
     elseif key == "_propertyInfo" then
       res = table._private.declaredProperty
     end
