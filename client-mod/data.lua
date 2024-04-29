@@ -14,9 +14,8 @@ for typename, typedValue in pairs(ReflectionLibraryMod.typed_data_raw) do
   if not typedValue then
     log("Client: No entry data.raw[\""..typename.."\"].")
   else
-    log("Client: Type checking data.raw[\""..typename.."\"]...")
-    if typedValue:_type_check(true) then
-      log("Client: Passed type check: data.raw[\""..typename.."\"]!")
+    for _, value in pairs(typedValue) do
+      value:_type_check(true)
     end
   end
 end
