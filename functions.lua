@@ -300,14 +300,18 @@ end
 function ReflectionLibraryMod.resolve_struct_properties(value, type, deepChecks, pathString, fromUnion)
   local declaredProperties = ReflectionLibraryMod.struct_declared_properties(type)
 
-  -- Fail fast by checking type, which is often the intentional way to distinguish unions.
-  -- function_name is also used to distinguish unions
-  for _, name in ipairs({"function_name", "type"}) do
-    local p = declaredProperties[name]
-    if p and (not p.optional or value[name]) then
-      local t = p.type
-      if t.complex_type == "literal" and not (t.value == value[name]) then
-        error((fromUnion and "(union filter) " or "").."Value's ."..name.." property does not match expected value of "..t.value.." (was "..tostring(value[name])..")"..(pathString and " in "..pathString or "")..".")
+  local allOpt = type.rest_optional_if and value[type.rest_optional_if]
+
+  if fromUnion or not allOpt then
+    -- Fail fast by checking type, which is often the intentional way to distinguish unions.
+    -- function_name is also used to distinguish unions
+    for _, name in ipairs({"function_name", "type"}) do
+      local p = declaredProperties[name]
+      if p and (not p.optional or value[name]) then
+        local t = p.type
+        if t.complex_type == "literal" and not (t.value == value[name]) then
+          error((fromUnion and "(union filter) " or "").."Value's ."..name.." property does not match expected value of "..t.value.." (was "..tostring(value[name])..")"..(pathString and " in "..pathString or "")..".")
+        end
       end
     end
   end
@@ -321,7 +325,16 @@ function ReflectionLibraryMod.resolve_struct_properties(value, type, deepChecks,
     end
 
     if propValue == nil then
-      if not prop.optional then
+      local opt = allOpt or prop.optional
+      if not opt and prop.optional_if then
+        for _, other in ipairs(prop.optional_if) do
+          if value[other] then
+            opt = true
+            break
+          end
+        end
+      end
+      if not opt then
         error("Non-optional property "..type.name.."."..prop.name
               ..((prop.alt_name and (" (alt: "..prop.alt_name..")")) or "").." is missing"
               ..(pathString and " in "..pathString or "")..".")

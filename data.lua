@@ -36,28 +36,67 @@ end
 
 -- Monkey patch apparently incorrect documentation
 local props = ReflectionLibraryMod.prototypes_by_name["DontUseEntityInEnergyProductionAchievementPrototype"].local_properties_by_name
-props.excluded.optional = true
-props.included.optional = true
-ReflectionLibraryMod.types_by_name["RotatedAnimation"].local_properties_by_name.direction_count.optional = true
+props.excluded.optional_if = { "included" }
+props.included.optional_if = { "excluded" }
+ReflectionLibraryMod.types_by_name["RotatedAnimation"].rest_optional_if = "layers"
+ReflectionLibraryMod.types_by_name["RotatedSprite"].rest_optional_if = "layers"
+
+ReflectionLibraryMod.types_by_name["RecipeData"].local_properties_by_name.results.optional_if = { "result" }
+
+-- type is missing in data.raw.turret["small-worm-turret"].spawn_decoration[*]
+ReflectionLibraryMod.types_by_name["CreateDecorativesTriggerEffectItem"].local_properties_by_name.type.optional = true
 
 -- FootstepTriggerEffectItem's inherited properties are actually options because it can contain an array of them.
 local t = ReflectionLibraryMod.types_by_name["FootstepTriggerEffectItem"]
-local props = t.properties
-local parent = ReflectionLibraryMod.types_by_name[t.parent]
-local parentProps = parent.properties
-for _, prop in ipairs(parentProps) do
-  if not prop.optional then
-    local newProp = {}
-    for k, v in pairs(prop) do
-      newProp[k] = v
-    end
-    newProp.override = true
-    newProp.optional = true
-    table.insert(props, newProp)
-  end
+t.rest_optional_if = "actions"
+
+-- data.raw["noise-expression"]["0_17-lakes-elevation"].expression.arguments[3].arguments[1].arguments[1].arguments[1].arguments[1].arguments[1].arguments.points
+-- is declared to be NoiseArrayConstruction but is actually a NoiseVariable.
+ReflectionLibraryMod.types_by_name["NoiseArrayConstruction"].type = {
+  complex_type = "union",
+  options = {
+    "NoiseVariable",
+    { complex_type = "struct" },
+  }
+}
+
+-- BoundingBox is sometimes a struct, not a tuple... but treating structs as tuples might be allowed in general?
+t = ReflectionLibraryMod.types_by_name["BoundingBox"]
+t.type = {
+  complex_type = "union",
+  options = {
+    { complex_type = "struct" },
+    t.type,
+  }
+}
+t.properties = {
+  {
+    name = "left_top",
+    type = "MapPosition",
+  },
+  {
+    name = "right_bottom",
+    type = "MapPosition",
+  }
+}
+
+for _, productType in ipairs({"FluidProductPrototype", "ItemProductPrototype"}) do
+  props = ReflectionLibraryMod.types_by_name[productType].local_properties_by_name
+  props.amount_min.optional_if = { "amount" }
+  props.amount_max.optional_if = { "amount" }
 end
--- fixup local_properties_by_name
-add_local_properties_by_name(t)
+
+-- Comments were probably not intended to be required.
+ReflectionLibraryMod.types_by_name["SpotNoiseArguments"].local_properties_by_name.comment.optional = true
+
+-- TileTransitions properties all are optional when empty_transitions is true.
+props = ReflectionLibraryMod.types_by_name["TileTransitions"].local_properties_by_name
+props.side.optional_if = { "empty_transitions", "side_mask" }
+props.side_mask.optional_if = { "empty_transitions", "side" }
+props.inner_corner.optional_if = { "empty_transitions", "inner_corner_mask" }
+props.inner_corner_mask.optional_if = { "empty_transitions", "inner_corner" }
+props.outer_corner.optional_if = { "empty_transitions", "outer_corner_mask" }
+props.outer_corner_mask.optional_if = { "empty_transitions", "outer_corner" }
 
 
 local data_raw_properties = {}
