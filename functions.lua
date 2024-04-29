@@ -304,6 +304,11 @@ function ReflectionLibraryMod.resolve_struct_properties(value, type, deepChecks)
       not (declaredProperties.type.type.value == value.type) then
     return nil
   end
+  -- function_name is also used to distinguish unions
+  if declaredProperties.function_name and declaredProperties.function_name.type.complex_type == "literal" and
+      not (declaredProperties.function_name.type.value == value.function_name) then
+    return nil
+  end
 
   local resolved = {}
   for _, prop in pairs(declaredProperties) do
