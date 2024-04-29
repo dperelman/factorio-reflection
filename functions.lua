@@ -42,19 +42,22 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, decl
               local v = value[k]
               -- TODO Can tuple elements actually be optional?
               if not v and not vType.optional then
-                return nil
+                error("Tuple missing non-optional element "..k)
               end
-              if not ReflectionLibraryMod.resolve_type(v, vType, deepChecks, declaringType) then
-                return nil
+              local status, resolved = pcall(ReflectionLibraryMod.resolve_type, v, vType, deepChecks, declaringType)
+              if not status or not resolved then
+                error("Tuple element "..k.." ("..tostring(v)..(v and v.type and ", .type="..tostring(v.type) or "")..") does not match expected type "..tostring(vType)..". "..(resolved or ""))
               end
             end
           elseif complex_type == "dictionary" then
             for k, v in pairs(value) do
-              if not ReflectionLibraryMod.resolve_type(k, declaredType.key, deepChecks) then
-                return nil
+              local status, resolved = pcall(ReflectionLibraryMod.resolve_type, k, declaredType.key, deepChecks)
+              if not status or not resolved then
+                error("Dictionary key "..k.." does not match expected type "..tostring(declaredType.key)..". "..(resolved or ""))
               end
-              if not ReflectionLibraryMod.resolve_type(v, declaredType.value, deepChecks, declaringType) then
-                return nil
+              status, resolved = pcall(ReflectionLibraryMod.resolve_type, v, declaredType.value, deepChecks, declaringType)
+              if not status or not resolved then
+                error("Dictionary value "..tostring(v).." ("..tostring(v)..(v and v.type and ", .type="..tostring(v.type) or "")..") does not match expected type "..tostring(declaredType.value)..". "..(resolved or ""))
               end
             end
           else -- complex_type == "array"
@@ -62,9 +65,10 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, decl
             -- https://lua-api.factorio.com/latest/prototypes/CraftingMachinePrototype.html#fluid_boxes
             -- says off_when_no_fluid_recipe is allowed as a key in its array, but only in the
             -- human-readable description, not the machine-readable section.
-            for _, v in ipairs(value) do
-              if not ReflectionLibraryMod.resolve_type(v, declaredType.value, deepChecks, declaringType) then
-                return nil
+            for k, v in ipairs(value) do
+              local status, resolved = pcall(ReflectionLibraryMod.resolve_type, v, declaredType.value, deepChecks, declaringType)
+              if not status or not resolved then
+                error("Array element "..k.." ("..tostring(v)..(v and v.type and ", .type="..tostring(v.type) or "")..") does not match expected type "..tostring(declaredType.value)..". "..(resolved or ""))
               end
             end
           end
@@ -105,8 +109,13 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, decl
         end
       end
       -- No union member matched.
-      error("No options matched for union ("..table.concat(declaredType.options, ", ").."):\n"
-            ..table.concat(errors, "\n"))
+      local error_str = ""
+      for _, error in ipairs(errors) do
+        if not (string.find(error, "(union filter)")) then
+          error_str = error_str.."\n"..error
+        end
+      end
+      error("No options matched for union ("..tostring(#declaredType.options).." options):"..error_str)
     elseif complex_type == "struct" then
       -- This case means "complex_type": "struct" was used as an option inside a union in a
       -- Type's definition, which means to use the properties list on the type.
@@ -116,9 +125,7 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, decl
         error("value of struct type ("..declaringType.name..") must be a table. Was: "..value)
       end
 
-      if not ReflectionLibraryMod.verify_struct_properties(value, declaringType, deepChecks) then
-        return nil
-      end
+      ReflectionLibraryMod.verify_struct_properties(value, declaringType, deepChecks)
 
       return {
         typeKind = "struct",
@@ -161,9 +168,7 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, decl
       }
     elseif aliasedType.complex_type == "struct" then
       if deepChecks then
-        if not ReflectionLibraryMod.verify_struct_properties(value, as_type, deepChecks) then
-          return nil
-        end
+        ReflectionLibraryMod.verify_struct_properties(value, as_type, deepChecks)
       end
 
       return {
@@ -212,9 +217,7 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, decl
     end
 
     if deepChecks then
-      if not ReflectionLibraryMod.verify_struct_properties(value, as_prototype, deepChecks) then
-        return nil
-      end
+      ReflectionLibraryMod.verify_struct_properties(value, as_prototype, deepChecks)
     end
 
     return {
@@ -223,10 +226,8 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, decl
       typeInfo = as_prototype,
     }
   end
-  -- TODO list of primitive types?
 
-  log("ERROR: unrecognized type name: " .. declaredType)
-  return nil
+  error("Unrecognized type name: " .. declaredType)
 end
 
 function ReflectionLibraryMod.verify_struct_properties(value, type, deepChecks)
@@ -298,7 +299,7 @@ function ReflectionLibraryMod.resolve_struct_properties(value, type, deepChecks)
     if p and (not p.optional or value[name]) then
       local t = p.type
       if t.complex_type == "literal" and not (t.value == value[name]) then
-        error("Value's ."..name.." property does not match expected value of "..t.value.." (was "..tostring(value[name])..").")
+        error("(union filter) Value's ."..name.." property does not match expected value of "..t.value.." (was "..tostring(value[name])..").")
       end
     end
   end
