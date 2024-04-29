@@ -1,9 +1,22 @@
 ReflectionLibraryMod = ReflectionLibraryMod or {}
 require("__ReflectionLibrary__.prototype-api")
 
+local function add_local_properties_by_name(value)
+  -- TODO Include supertype properties/info?
+  if value.properties then
+    value.local_properties_by_name = {}
+
+    for _, prop in ipairs(value.properties) do
+      value.local_properties_by_name[prop.name] = prop
+    end
+  end
+end
+
 ReflectionLibraryMod.prototypes_by_name = {}
 ReflectionLibraryMod.prototypes_by_typename = {}
 for _, value in ipairs(ReflectionLibraryMod.prototype_api.prototypes) do
+  add_local_properties_by_name(value)
+
   ReflectionLibraryMod.prototypes_by_name[value.name] = value
 
   -- Abstract prototypes don't have typenames.
@@ -14,6 +27,8 @@ end
 
 ReflectionLibraryMod.types_by_name = {}
 for _, value in ipairs(ReflectionLibraryMod.prototype_api.types) do
+  add_local_properties_by_name(value)
+
   ReflectionLibraryMod.types_by_name[value.name] = value
 end
 
