@@ -152,7 +152,15 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, decl
         typeInfo = as_type,
       }
     else
-      return ReflectionLibraryMod.resolve_type(value, aliasedType, deepChecks, as_type)
+      local resolved = ReflectionLibraryMod.resolve_type(value, aliasedType, deepChecks, as_type)
+      if resolved and resolved.typeKind == "builtin" then
+        return {
+          typeKind = "alias",
+          name = declaredType,
+          typeInfo = as_type,
+        }
+      end
+      return resolved
     end
   end
 
