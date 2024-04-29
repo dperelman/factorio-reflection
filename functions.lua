@@ -97,7 +97,7 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks)
       declaredType = declaredType.value
       -- Intentionally fall through to the code below handling type names.
     else
-      log("ERROR: unrecognized complex_type kind: " .. complex_type);
+      log("ERROR: unrecognized complex_type kind: " .. complex_type)
       return nil
     end
   end
@@ -169,7 +169,8 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks)
     }
   end
   -- TODO list of primitive types?
-  log("ERROR: unrecognized type name: " .. declaredType);
+
+  log("ERROR: unrecognized type name: " .. declaredType)
   return nil
 end
 
