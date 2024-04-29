@@ -6,7 +6,7 @@
   "contact": "https://github.com/dperelman/factorio-reflection",
   "homepage": "https://github.com/dperelman/factorio-reflection",
   "factorio_version": "1.1",
-  "description": "Allows access to prototype type names at runtime.",
+  "description": "Allows access to prototype type information during data phase.",
   "dependencies": [
     "base >= 1.1"
   ]
