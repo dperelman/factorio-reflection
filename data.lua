@@ -37,6 +37,11 @@ ReflectionLibraryMod.data_raw_type = {
 
 require("__ReflectionLibrary__.functions")
 
-ReflectionLibraryMod.typed_data_raw = ReflectionLibraryMod.wrap_typed_object(
+local typed_data_raw = ReflectionLibraryMod.wrap_typed_object(
   ReflectionLibraryMod.as_typed_object(data.raw, ReflectionLibraryMod.data_raw_type.type,
                                        "data.raw", ReflectionLibraryMod.data_raw_type))
+if not typed_data_raw then
+  error("Failed to load ReflectionLibrary: data.raw type checking failed.")
+else
+  ReflectionLibraryMod.typed_data_raw = typed_data_raw
+end
