@@ -102,7 +102,7 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks)
     end
   end
 
-  local as_type = ReflectionLibraryMod.types_by_name[value]
+  local as_type = ReflectionLibraryMod.types_by_name[declaredType]
   if as_type then
     local aliasedType = as_type.type
     if aliasedType.complex_type == "struct" then
@@ -122,7 +122,7 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks)
     end
   end
 
-  local as_prototype = ReflectionLibraryMod.prototypes_by_name[value]
+  local as_prototype = ReflectionLibraryMod.prototypes_by_name[declaredType]
   if as_prototype then
     -- If the typename doesn't match, maybe it's a subtype.
     if not (value.type == as_prototype.typename) then
