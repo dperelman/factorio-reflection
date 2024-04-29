@@ -487,6 +487,8 @@ if (__DebugAdapter) then
 
   local specialKeys = {
     "_type",
+    "_propertyInfo",
+    "_parent",
     "_path()",
     "_pathString()",
     "_keys()",
@@ -523,6 +525,26 @@ if (__DebugAdapter) then
       end
 
       if type(table._private.value) == "table" then
+        -- Show debug display in property order if possible.
+        local typeInfo = table._private.type.typeInfo
+        -- TODO Handle ordering parent properties?
+        if (typeInfo and typeInfo.properties and not typeInfo.parent) then
+          local seenKey = k == nil
+          for _, prop in ipairs(typeInfo.properties) do
+            if not seenKey then
+              if prop.name == k then
+                seenKey = true
+              end
+            else
+              local v = mt.__index(table, prop.name)
+              if nil~=v then
+                return prop.name, v
+              end
+            end
+          end
+          return nil, nil
+        end
+
         local v
         k, v = next(table._private.value, k)
         if nil~=v then
