@@ -105,6 +105,15 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks)
   local as_type = ReflectionLibraryMod.types_by_name[declaredType]
   if as_type then
     local aliasedType = as_type.type
+
+    if aliasedType.type == "builtin" then
+      return {
+        typeKind = "builtin",
+        name = declaredType,
+        typeInfo = as_type,
+      }
+    end
+
     if aliasedType.complex_type == "struct" then
       if deepChecks then
         if not ReflectionLibraryMod.verify_struct_properties(value, as_type, deepChecks) then
