@@ -1,0 +1,14 @@
+{
+  "name": "ReflectionClient",
+  "version": "0.0.1",
+  "title": "ReflectionClient",
+  "author": "anyoneeb",
+  "contact": "https://github.com/dperelman/factorio-reflection",
+  "homepage": "https://github.com/dperelman/factorio-reflection",
+  "factorio_version": "1.1",
+  "description": "Test client for ReflectionLibrary",
+  "dependencies": [
+    "base >= 1.1",
+    "ReflectionLibrary >= 0.0.1"
+  ]
+}
