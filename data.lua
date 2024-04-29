@@ -32,6 +32,13 @@ for _, value in ipairs(ReflectionLibraryMod.prototype_api.types) do
   ReflectionLibraryMod.types_by_name[value.name] = value
 end
 
+
+-- Monkey patch apparently incorrect documentation
+local props = ReflectionLibraryMod.prototypes_by_name["DontUseEntityInEnergyProductionAchievementPrototype"].local_properties_by_name
+props.excluded.optional = true
+props.included.optional = true
+
+
 local data_raw_properties = {}
 for typename, prototype in pairs(ReflectionLibraryMod.prototypes_by_typename) do
   table.insert(data_raw_properties, {
