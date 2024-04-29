@@ -37,6 +37,7 @@ end
 local props = ReflectionLibraryMod.prototypes_by_name["DontUseEntityInEnergyProductionAchievementPrototype"].local_properties_by_name
 props.excluded.optional = true
 props.included.optional = true
+ReflectionLibraryMod.types_by_name["RotatedAnimation"].local_properties_by_name.direction_count.optional = true
 
 
 local data_raw_properties = {}
