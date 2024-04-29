@@ -34,7 +34,7 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, decl
     if complex_type == "array" or complex_type == "dictionary" or complex_type == "tuple" then
       -- TODO Do any unions require more careful type checking here?
       if not (type(value) == "table") then
-        return nil
+        error("Expected a "..complex_type.." but value is not a Lua table. value="..tostring(value))
       else
         if deepChecks then
           if complex_type == "tuple" then
@@ -89,26 +89,31 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, decl
           literalValue = literalValue,
         }
       else
-        return nil
+        error("Not matching literal value (expected="..tostring(literalValue)..", actual="..tostring(value)..")")
       end
     elseif complex_type == "union" then
       -- need to figure out which element of the union it is.
+      local errors = {}
       for _, option in ipairs(declaredType.options) do
-        local resolvedOption = ReflectionLibraryMod.resolve_type(value, option, deepChecks, declaringType)
-        if resolvedOption then
-          return resolvedOption
+        local status, resolvedOption = pcall(ReflectionLibraryMod.resolve_type, value, option, deepChecks, declaringType)
+        if status then
+          if resolvedOption then
+            return resolvedOption
+          end
+        else
+          table.insert(errors, resolvedOption)
         end
       end
       -- No union member matched.
-      return nil
+      error("No options matched for union ("..table.concat(declaredType.options, ", ").."):\n"
+            ..table.concat(errors, "\n"))
     elseif complex_type == "struct" then
       -- This case means "complex_type": "struct" was used as an option inside a union in a
       -- Type's definition, which means to use the properties list on the type.
       if not declaringType then
-        log("ERROR: struct doesn't make sense outside of a type definition")
-        return nil
+        error("struct doesn't make sense outside of a type definition")
       elseif not (type(value) == "table") then
-        return nil
+        error("value of struct type ("..declaringType.name..") must be a table. Was: "..value)
       end
 
       if not ReflectionLibraryMod.verify_struct_properties(value, declaringType, deepChecks) then
@@ -124,8 +129,7 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, decl
       declaredType = declaredType.value
       -- Intentionally fall through to the code below handling type names.
     else
-      log("ERROR: unrecognized complex_type kind: " .. complex_type)
-      return nil
+      error("Unrecognized complex_type kind: " .. complex_type)
     end
   end
 
@@ -137,17 +141,17 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, decl
       local t = type(value)
       if t == "string" then
         if not (declaredType == "string") then
-          return nil
+          error("Expected a string. Was: "..tostring(value))
         end
       elseif t == "boolean" then
         if not (declaredType == "bool") then
-          return nil
+          error("Expected a boolean. Was: "..tostring(value))
         end
       elseif declaredType == "DataExtendMethod" then
-        return nil
+        error("DataExtendMethod is an unsupported type.")
       -- The rest of the builtins are kinds of numbers: float, double, int8, int16, ...
       elseif not (t == "number") then
-        return nil
+        error("Expected a number. Was: "..tostring(value))
       end
 
       return {
@@ -186,11 +190,11 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, decl
     if not (value.type == as_prototype.typename) then
       local dynamic_prototype = ReflectionLibraryMod.prototypes_by_typename[value.type]
       if not dynamic_prototype then
-        return nil
+        error("Value declared of type "..declaredType.." has a .type property of unknown prototype "..tostring(value.type)..".")
       end
       -- If the dynamic type doesn't have supertypes, it's definitely not a subtype.
       if not dynamic_prototype.parent then
-        return nil
+        error("Value declared of type "..declaredType.." has a .type property of prototype "..tostring(value.type).." which is not a subtype.")
       end
       -- Look through the dynamic type's supertypes looking for the declared prototype.
       local current_prototype = dynamic_prototype
@@ -202,7 +206,7 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, decl
           break
         elseif not current_prototype.parent then
           -- Is a prototype value of the wrong type.
-          return nil
+          error("Value declared of type "..declaredType.." has a .type property of prototype "..tostring(value.type).." which is not a subtype.")
         end
       end
     end
@@ -226,7 +230,9 @@ function ReflectionLibraryMod.resolve_type(value, declaredType, deepChecks, decl
 end
 
 function ReflectionLibraryMod.verify_struct_properties(value, type, deepChecks)
-  return not (ReflectionLibraryMod.resolve_struct_properties(value, type, deepChecks) == nil)
+  -- Errors if it fails.
+  ReflectionLibraryMod.resolve_struct_properties(value, type, deepChecks)
+  return true
 end
 
 -- List of parent types with the
@@ -242,28 +248,20 @@ function ReflectionLibraryMod.type_and_parents(type, reversed)
     parentType = ReflectionLibraryMod.types_by_name[type.parent]
   end
   if not parentType then
-    log("Type "..type.name.." has unknown parent type "..type.parent)
-    return nil
+    error("Type "..type.name.." has an unknown parent type "..tostring(type.parent)..".")
   end
 
   local types = ReflectionLibraryMod.type_and_parents(parentType, reversed)
-  if not types then
-    return nil
+  if reversed then
+    table.insert(types, 1, type)
   else
-    if reversed then
-      table.insert(types, 1, type)
-    else
-      table.insert(types, type)
-    end
-    return types
+    table.insert(types, type)
   end
+  return types
 end
 
 function ReflectionLibraryMod.struct_declared_properties(type)
   local ancestor_types = ReflectionLibraryMod.type_and_parents(type, false)
-  if not ancestor_types then
-    return nil
-  end
 
   local properties = {}
   for _, t in ipairs(ancestor_types) do
@@ -278,9 +276,6 @@ end
 
 function ReflectionLibraryMod.struct_declared_property(type, propName)
   local ancestor_types = ReflectionLibraryMod.type_and_parents(type, true)
-  if not ancestor_types then
-    return nil
-  end
 
   for _, t in ipairs(ancestor_types) do
     for _, prop in ipairs(t.properties) do
@@ -295,32 +290,35 @@ end
 
 function ReflectionLibraryMod.resolve_struct_properties(value, type, deepChecks)
   local declaredProperties = ReflectionLibraryMod.struct_declared_properties(type)
-  if not declaredProperties then
-    return nil
-  end
 
   -- Fail fast by checking type, which is often the intentional way to distinguish unions.
-  if declaredProperties.type and declaredProperties.type.type.complex_type == "literal" and
-      not (declaredProperties.type.type.value == value.type) then
-    return nil
-  end
   -- function_name is also used to distinguish unions
-  if declaredProperties.function_name and declaredProperties.function_name.type.complex_type == "literal" and
-      not (declaredProperties.function_name.type.value == value.function_name) then
-    return nil
+  for _, name in ipairs({"function_name", "type"}) do
+    local p = declaredProperties[name]
+    if p and (not p.optional or value[name]) then
+      local t = p.type
+      if t.complex_type == "literal" and not (t.value == value[name]) then
+        error("Value's ."..name.." property does not match expected value of "..t.value.." (was "..tostring(value[name])..").")
+      end
+    end
   end
 
   local resolved = {}
   for _, prop in pairs(declaredProperties) do
     local propValue = value[prop.name]
+    if propValue == nil and prop.alt_name then
+      propValue = value[prop.alt_name]
+    end
+
     if propValue == nil then
       if not prop.optional then
-        return nil
+        error("Non-optional property "..type.name.."."..prop.name
+              ..((prop.alt_name and (" (alt: "..prop.alt_name..")")) or "").." is missing.")
       end
     else
       local propResolvedType = ReflectionLibraryMod.resolve_type(propValue, prop.type, deepChecks)
       if not propResolvedType then
-        return nil
+        error("Unexpected type for property "..type.name.."."..prop.name.." (type="..prop.type..", value="..propValue..").")
       else
         resolved[prop.name] = {
           declaredType = prop.type,
