@@ -4,7 +4,7 @@ log("In ReflectionLibrary...")
 
 for typename, _ in pairs(ReflectionLibraryMod.prototypes_by_typename) do
   log("Loading data.raw[\""..typename.."\"]...")
-  local typedValue = ReflectionLibraryMod.typed_data_raw(typename)
+  local typedValue = ReflectionLibraryMod.typed_data_raw_section(typename)
   if not typedValue then
     log("No entry data.raw[\""..typename.."\"].")
   else

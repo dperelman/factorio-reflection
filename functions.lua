@@ -396,7 +396,7 @@ function ReflectionLibraryMod.typed_object_lookup_property(typedValue, propertyN
   return res
 end
 
-function ReflectionLibraryMod.as_typed_object(value, declaredType, valueString)
+function ReflectionLibraryMod.as_typed_object(value, declaredType, valueString, wrappingType)
   return {
     value = value,
     declaredType = declaredType,
@@ -404,11 +404,11 @@ function ReflectionLibraryMod.as_typed_object(value, declaredType, valueString)
     rootString = valueString,
     path = {},
     parent = nil,
-    type = ReflectionLibraryMod.resolve_type(value, declaredType)
+    type = ReflectionLibraryMod.resolve_type(value, declaredType, false, wrappingType)
   }
 end
 
-function ReflectionLibraryMod.typed_data_raw(prototypeTypename)
+function ReflectionLibraryMod.typed_data_raw_section(prototypeTypename)
   local value = data.raw[prototypeTypename]
   if not value then
     -- Prototype not actually in data.raw?
@@ -419,4 +419,72 @@ function ReflectionLibraryMod.typed_data_raw(prototypeTypename)
     complex_type = "array",
     value = ReflectionLibraryMod.prototypes_by_typename[prototypeTypename].name
   }, "data.raw[\""..prototypeTypename.."\"]")
+end
+
+local prototype = {}
+local mt = {}
+mt.__index = function (table, key)
+  return prototype[key] or ReflectionLibraryMod.wrap_typed_object(
+    ReflectionLibraryMod.typed_object_lookup_property(table._private, key))
+end
+
+mt.__newindex = function (table, key, newValue)
+  table._private.value[key] = newValue
+end
+
+prototype._keys = function (table)
+  return mt.__index(table, { func="keys" })
+end
+
+prototype._values = function (table)
+  return mt.__index(table, { func="values" })
+end
+
+-- From http://lua-users.org/wiki/GeneralizedPairsAndIpairs
+mt.__pairs = function (table)
+  -- Iterator function takes the table and an index and returns the next index and associated value
+  -- or nil to end iteration
+
+  local function stateless_iter(table, k)
+    if type(table._private.value) == "table" then
+      local v
+      k, v = next(table._private.value, k)
+      if nil~=v then
+        -- This could return nil on a type error...
+        return k,mt.__index(table, k)
+      end
+    end
+  end
+
+  -- Return an iterator function, the table, starting point
+  return stateless_iter, table, nil
+end
+
+mt.__ipairs = function (table)
+  -- Iterator function
+  local function stateless_iter(table, i)
+    if type(table._private.value) == "table" then
+      i = i + 1
+      local v = mt.__index(table, i)
+      if nil~=v then return i, v end
+    end
+  end
+
+  -- return iterator function, table, and starting point
+  return stateless_iter, table, 0
+end
+
+prototype._type_check = function (table, deepChecks)
+  return ReflectionLibraryMod.type_check(table._private, deepChecks)
+end
+
+function ReflectionLibraryMod.wrap_typed_object(typedValue)
+  if typedValue == nil then
+    return nil
+  end
+
+  local res = {_private = typedValue}
+  setmetatable(res, mt)
+
+  return res
 end

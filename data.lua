@@ -16,3 +16,26 @@ ReflectionLibraryMod.types_by_name = {}
 for _, value in ipairs(ReflectionLibraryMod.prototype_api.types) do
   ReflectionLibraryMod.types_by_name[value.name] = value
 end
+
+local data_raw_properties = {}
+for typename, prototype in pairs(ReflectionLibraryMod.prototypes_by_typename) do
+  table.insert(data_raw_properties, {
+    name = typename,
+    optional = true,
+    type = {
+      complex_type = "array",
+      value = prototype.name,
+    },
+  })
+end
+ReflectionLibraryMod.data_raw_type = {
+  name = "_type_of_data.raw",
+  type = { complex_type = "struct" },
+  properties = data_raw_properties
+}
+
+require("__ReflectionLibrary__.functions")
+
+ReflectionLibraryMod.typed_data_raw = ReflectionLibraryMod.wrap_typed_object(
+  ReflectionLibraryMod.as_typed_object(data.raw, ReflectionLibraryMod.data_raw_type.type,
+                                       "data.raw", ReflectionLibraryMod.data_raw_type))
